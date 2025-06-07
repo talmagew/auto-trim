@@ -9,10 +9,18 @@
     <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
 </head>
 <body>
-    <h1>Waveform Analyzer</h1>
-    <input type="file" id="file-input" accept="audio/*,video/*">
-    <div id="waveform"></div>
-    <canvas id="analysis-canvas" width="800" height="200"></canvas>
+    <div class="container">
+        <h1>Waveform Analyzer</h1>
+        <input type="file" id="file-input" accept="audio/*,video/*">
+        <div id="zoom-controls" style="display: none;">
+            <button id="zoom-in">Zoom In</button>
+            <button id="zoom-out">Zoom Out</button>
+            <button id="zoom-reset">Reset Zoom</button>
+            <span id="zoom-level">Zoom: 1x</span>
+        </div>
+        <div id="waveform"></div>
+        <canvas id="analysis-canvas"></canvas>
+    </div>
     <script src="script.js"></script>
 </body>
 </html>
