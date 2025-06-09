@@ -3,24 +3,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Audio/Video Waveform Analyzer</title>
+    <title>Audio Waveform Analyzer with STT</title>
     <link rel="stylesheet" href="style.css">
-    <!-- Wavesurfer.js CDN -->
-    <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js"></script>
+    <script src="https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.esm.js" type="module"></script>
 </head>
 <body>
-    <div class="container">
-        <h1>Waveform Analyzer</h1>
-        <input type="file" id="file-input" accept="audio/*,video/*">
-        <div id="zoom-controls" style="display: none;">
-            <button id="zoom-in">Zoom In</button>
-            <button id="zoom-out">Zoom Out</button>
-            <button id="zoom-reset">Reset Zoom</button>
-            <span id="zoom-level">Zoom: 1x</span>
+    <!-- Sticky Waveform Section -->
+    <div id="waveform-header">
+        <div id="waveform-container">
+            <div id="waveform"></div>
         </div>
-        <div id="waveform"></div>
-        <canvas id="analysis-canvas"></canvas>
+        
+        <!-- Modern Audio Controls -->
+        <div id="audio-controls">
+            <button id="play-pause-btn" class="control-btn" disabled>
+                <svg id="play-icon" viewBox="0 0 24 24" width="24" height="24">
+                    <path d="M8 5v14l11-7z" fill="currentColor"/>
+                </svg>
+                <svg id="pause-icon" viewBox="0 0 24 24" width="24" height="24" style="display: none;">
+                    <path d="M6 19h4V5H6v14zm8-14v14h4V5h-4z" fill="currentColor"/>
+                </svg>
+            </button>
+            
+            <div id="time-display">
+                <span id="current-time">0:00</span>
+                <span class="time-separator">/</span>
+                <span id="total-time">0:00</span>
+            </div>
+            
+            <div id="volume-container">
+                <svg viewBox="0 0 24 24" width="20" height="20" class="volume-icon">
+                    <path d="M3 9v6h4l5 5V4L7 9H3zm13.5 3c0-1.77-1.02-3.29-2.5-4.03v8.05c1.48-.73 2.5-2.25 2.5-4.02zM14 3.23v2.06c2.89.86 5 3.54 5 6.71s-2.11 5.85-5 6.71v2.06c4.01-.91 7-4.49 7-8.77s-2.99-7.86-7-8.77z" fill="currentColor"/>
+                </svg>
+                <input type="range" id="volume-slider" min="0" max="100" value="80" class="modern-slider">
+                <span id="volume-value">80%</span>
+            </div>
+        </div>
     </div>
+
+    <!-- Main Content Area -->
+    <div id="main-content">
+        <!-- File Upload Section -->
+        <div class="upload-section">
+            <h2>Audio/Video File Upload</h2>
+            <div class="file-input-container">
+                <input type="file" id="file-input" accept="audio/*,video/*,.mov,.mp4,.avi,.mkv,.mxf,.braw,.r3d,.prores" />
+                <div class="file-info-preview" id="file-info-preview" style="display: none;">
+                    <div class="file-size-warning" id="file-size-warning"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- STT Controls -->
+        <div id="stt-controls" style="display: none;">
+            <h3>Speech-to-Text Processing</h3>
+            <div class="stt-options">
+                <label>
+                    <input type="radio" name="stt-method" value="cloud-google" checked>
+                    Google Cloud Speech-to-Text
+                    <small>✅ Excellent accuracy, requires API key</small>
+                </label>
+                <label>
+                    <input type="radio" name="stt-method" value="whisper-wasm">
+                    Whisper.cpp (WebAssembly - Offline)
+                    <small>✅ Best for privacy, requires setup</small>
+                </label>
+            </div>
+            <button id="process-audio-stt">Process Audio for STT</button>
+            <div id="transcription-status"></div>
+            
+            <!-- STT Processing Options -->
+            <div id="stt-options-panel" style="display: none;">
+                <h4>Processing Options</h4>
+                <label>
+                    Language: 
+                    <select id="language-select">
+                        <option value="en-US">English (US)</option>
+                        <option value="en-GB">English (UK)</option>
+                        <option value="es-ES">Spanish</option>
+                        <option value="fr-FR">French</option>
+                        <option value="de-DE">German</option>
+                        <option value="it-IT">Italian</option>
+                        <option value="pt-BR">Portuguese (Brazil)</option>
+                        <option value="ja-JP">Japanese</option>
+                        <option value="ko-KR">Korean</option>
+                        <option value="zh-CN">Chinese (Mandarin)</option>
+                    </select>
+                </label>
+                <label>
+                    <input type="checkbox" id="enable-timestamps" checked>
+                    Enable timestamp synchronization
+                </label>
+                <label>
+                    <input type="checkbox" id="confidence-tracking" checked>
+                    Track confidence levels
+                </label>
+                
+                <!-- Cloud Service Configuration -->
+                <div id="cloud-config" style="display: none;">
+                    <h5>Google Cloud Configuration</h5>
+                    
+                    <div id="google-config">
+                        <label>
+                            Google Cloud API Key:
+                            <input type="password" id="google-api-key" placeholder="Enter your API key">
+                        </label>
+                        <small>Get your API key from <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a></small>
+                    </div>
+                </div>
+                
+                <!-- Whisper Configuration -->
+                <div id="whisper-config" style="display: none;">
+                    <h5>Whisper.cpp Configuration</h5>
+                    <div id="whisper-status">
+                        <div class="status-indicator">
+                            <span id="whisper-model-status">⏳ Checking Whisper.cpp installation...</span>
+                        </div>
+                        <div id="whisper-setup-guide" style="display: none;">
+                            <h6>Setup Required</h6>
+                            <ol>
+                                <li>Download Whisper.cpp WebAssembly files</li>
+                                <li>Place files in your web directory</li>
+                                <li>Select model size based on your needs</li>
+                            </ol>
+                            <button id="download-whisper-guide">📋 View Detailed Setup Guide</button>
+                        </div>
+                        <div id="whisper-model-selection" style="display: none;">
+                            <label>
+                                Model Size:
+                                <select id="whisper-model-size">
+                                    <option value="tiny">Tiny (~39MB) - Fastest</option>
+                                    <option value="base" selected>Base (~74MB) - Balanced</option>
+                                    <option value="small">Small (~244MB) - Better accuracy</option>
+                                    <option value="medium">Medium (~769MB) - High accuracy</option>
+                                    <option value="large">Large (~1550MB) - Best accuracy</option>
+                                </select>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Processing Status -->
+        <div id="processing-status" style="display: none;">
+            <h4>Processing Audio...</h4>
+            <div class="progress-container">
+                <div id="progress-bar"></div>
+            </div>
+            <p id="progress-text">Initializing...</p>
+        </div>
+
+        <!-- Transcript Section -->
+        <div id="transcript-section" style="display: none;">
+            <div class="section-header">
+                <h3>Transcript Results</h3>
+                <div class="transcript-controls">
+                    <button id="copy-transcript">📋 Copy Text</button>
+                    <button id="download-txt">💾 Download TXT</button>
+                    <button id="download-srt">🎬 Download SRT</button>
+                    <button id="download-vtt">📺 Download VTT</button>
+                </div>
+            </div>
+            
+            <div id="transcript-stats">
+                <span class="stat">Segments: <strong id="segment-count">0</strong></span>
+                <span class="stat">Words: <strong id="word-count">0</strong></span>
+                <span class="stat">Average Confidence: <strong id="avg-confidence">0%</strong></span>
+            </div>
+
+            <div id="transcript-container">
+                <div id="transcript-content"></div>
+            </div>
+        </div>
+
+        <!-- Audio Analysis Section -->
+        <div id="analysis-section" style="display: none;">
+            <h3>Audio Analysis</h3>
+            <div id="analysis-results">
+                <div class="analysis-item">
+                    <h4>Peak Detection</h4>
+                    <p id="peak-count">Peaks found: <span>0</span></p>
+                    <div id="peaks-visualization"></div>
+                </div>
+                
+                <div class="analysis-item">
+                    <h4>Audio Properties</h4>
+                    <div id="audio-properties">
+                        <p>RMS Energy: <span id="rms-energy">0</span></p>
+                        <p>Zero Crossings: <span id="zero-crossings">0</span></p>
+                        <p>Spectral Centroid: <span id="spectral-centroid">0 Hz</span></p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="script.js"></script>
 </body>
 </html>
