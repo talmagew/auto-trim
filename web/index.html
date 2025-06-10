@@ -54,94 +54,211 @@
             </div>
         </div>
 
+        <!-- Onboarding Section -->
+        <div id="onboarding-section" class="onboarding-section">
+            <div class="onboarding-header">
+                <h2>🎵 Welcome to Audio Transcription</h2>
+                <p>Transform your audio and video files into searchable text with our powerful speech-to-text tools.</p>
+            </div>
+            
+            <div class="feature-cards">
+                <div class="feature-card">
+                    <div class="feature-icon">🌐</div>
+                    <h3>Cloud Processing</h3>
+                    <p>Google Cloud Speech-to-Text for maximum accuracy</p>
+                    <div class="feature-badges">
+                        <span class="badge pro">High Accuracy</span>
+                        <span class="badge">API Key Required</span>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🔒</div>
+                    <h3>Private Processing</h3>
+                    <p>Whisper.cpp runs entirely in your browser</p>
+                    <div class="feature-badges">
+                        <span class="badge pro">100% Private</span>
+                        <span class="badge">Setup Required</span>
+                    </div>
+                </div>
+                <div class="feature-card">
+                    <div class="feature-icon">🎵</div>
+                    <h3>Audio Analysis</h3>
+                    <p>Visualize waveforms and analyze audio properties</p>
+                    <div class="feature-badges">
+                        <span class="badge pro">Built-in</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="getting-started">
+                <h3>Getting Started</h3>
+                <ol class="steps-list">
+                    <li>
+                        <span class="step-number">1</span>
+                        <div class="step-content">
+                            <strong>Upload your file</strong>
+                            <p>Drag and drop or select an audio/video file above</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="step-number">2</span>
+                        <div class="step-content">
+                            <strong>Choose transcription method</strong>
+                            <p>Select between cloud or offline processing</p>
+                        </div>
+                    </li>
+                    <li>
+                        <span class="step-number">3</span>
+                        <div class="step-content">
+                            <strong>Process and export</strong>
+                            <p>Get your transcript in multiple formats</p>
+                        </div>
+                    </li>
+                </ol>
+            </div>
+        </div>
+
         <!-- STT Controls -->
         <div id="stt-controls" style="display: none;">
-            <h3>Speech-to-Text Processing</h3>
-            <div class="stt-options">
-                <label>
-                    <input type="radio" name="stt-method" value="cloud-google" checked>
-                    Google Cloud Speech-to-Text
-                    <small>✅ Excellent accuracy, requires API key</small>
-                </label>
-                <label>
-                    <input type="radio" name="stt-method" value="whisper-wasm">
-                    Whisper.cpp (WebAssembly - Offline)
-                    <small>✅ Best for privacy, requires setup</small>
-                </label>
+            <div class="stt-header">
+                <h3>🎙️ Speech-to-Text Processing</h3>
+                <p>Choose your transcription method and configure settings</p>
             </div>
-            <button id="process-audio-stt">Process Audio for STT</button>
-            <div id="transcription-status"></div>
             
-            <!-- STT Processing Options -->
-            <div id="stt-options-panel" style="display: none;">
-                <h4>Processing Options</h4>
-                <label>
-                    Language: 
-                    <select id="language-select">
-                        <option value="en-US">English (US)</option>
-                        <option value="en-GB">English (UK)</option>
-                        <option value="es-ES">Spanish</option>
-                        <option value="fr-FR">French</option>
-                        <option value="de-DE">German</option>
-                        <option value="it-IT">Italian</option>
-                        <option value="pt-BR">Portuguese (Brazil)</option>
-                        <option value="ja-JP">Japanese</option>
-                        <option value="ko-KR">Korean</option>
-                        <option value="zh-CN">Chinese (Mandarin)</option>
-                    </select>
-                </label>
-                <label>
-                    <input type="checkbox" id="enable-timestamps" checked>
-                    Enable timestamp synchronization
-                </label>
-                <label>
-                    <input type="checkbox" id="confidence-tracking" checked>
-                    Track confidence levels
-                </label>
-                
-                <!-- Cloud Service Configuration -->
-                <div id="cloud-config" style="display: none;">
-                    <h5>Google Cloud Configuration</h5>
-                    
-                    <div id="google-config">
-                        <label>
-                            Google Cloud API Key:
-                            <input type="password" id="google-api-key" placeholder="Enter your API key">
+            <div class="stt-method-selector">
+                <div class="method-option" data-method="cloud-google">
+                    <div class="method-header">
+                        <input type="radio" name="stt-method" value="cloud-google" id="method-google" checked>
+                        <label for="method-google">
+                            <div class="method-icon">☁️</div>
+                            <div class="method-info">
+                                <h4>Google Cloud Speech-to-Text</h4>
+                                <p>Professional-grade accuracy with fast processing</p>
+                            </div>
                         </label>
-                        <small>Get your API key from <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a></small>
+                        <div class="method-status" id="google-status">
+                            <span class="status-indicator pending">⚠️ API Key Required</span>
+                        </div>
                     </div>
                 </div>
                 
-                <!-- Whisper Configuration -->
-                <div id="whisper-config" style="display: none;">
-                    <h5>Whisper.cpp Configuration</h5>
-                    <div id="whisper-status">
-                        <div class="status-indicator">
-                            <span id="whisper-model-status">⏳ Checking Whisper.cpp installation...</span>
+                <div class="method-option" data-method="whisper-wasm">
+                    <div class="method-header">
+                        <input type="radio" name="stt-method" value="whisper-wasm" id="method-whisper">
+                        <label for="method-whisper">
+                            <div class="method-icon">🔒</div>
+                            <div class="method-info">
+                                <h4>Whisper.cpp (Offline)</h4>
+                                <p>Private processing that runs entirely in your browser</p>
+                            </div>
+                        </label>
+                        <div class="method-status" id="whisper-status">
+                            <span class="status-indicator" id="whisper-model-status">⏳ Checking availability...</span>
                         </div>
-                        <div id="whisper-setup-guide" style="display: none;">
-                            <h6>Setup Required</h6>
-                            <ol>
-                                <li>Download Whisper.cpp WebAssembly files</li>
-                                <li>Place files in your web directory</li>
-                                <li>Select model size based on your needs</li>
-                            </ol>
-                            <button id="download-whisper-guide">📋 View Detailed Setup Guide</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="stt-config-panel">
+                <!-- Processing Options -->
+                <div class="config-section">
+                    <h4>🔧 Processing Options</h4>
+                    <div class="config-grid">
+                        <div class="config-item">
+                            <label for="language-select">Language:</label>
+                            <select id="language-select">
+                                <option value="en-US">English (US)</option>
+                                <option value="en-GB">English (UK)</option>
+                                <option value="es-ES">Spanish</option>
+                                <option value="fr-FR">French</option>
+                                <option value="de-DE">German</option>
+                                <option value="it-IT">Italian</option>
+                                <option value="pt-BR">Portuguese (Brazil)</option>
+                                <option value="ja-JP">Japanese</option>
+                                <option value="ko-KR">Korean</option>
+                                <option value="zh-CN">Chinese (Mandarin)</option>
+                            </select>
                         </div>
-                        <div id="whisper-model-selection" style="display: none;">
+                        <div class="config-item">
                             <label>
-                                Model Size:
-                                <select id="whisper-model-size">
-                                    <option value="tiny">Tiny (~39MB) - Fastest</option>
-                                    <option value="base" selected>Base (~74MB) - Balanced</option>
-                                    <option value="small">Small (~244MB) - Better accuracy</option>
-                                    <option value="medium">Medium (~769MB) - High accuracy</option>
-                                    <option value="large">Large (~1550MB) - Best accuracy</option>
-                                </select>
+                                <input type="checkbox" id="enable-timestamps" checked>
+                                Enable timestamp synchronization
+                            </label>
+                        </div>
+                        <div class="config-item">
+                            <label>
+                                <input type="checkbox" id="confidence-tracking" checked>
+                                Track confidence levels
                             </label>
                         </div>
                     </div>
                 </div>
+                
+                <!-- Cloud Service Configuration -->
+                <div id="cloud-config" class="config-section">
+                    <h4>☁️ Google Cloud Configuration</h4>
+                    <div class="config-notice">
+                        <p>You'll need a Google Cloud API key to use this service. <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Get your API key →</a></p>
+                    </div>
+                    <div class="config-item">
+                        <label for="google-api-key">API Key:</label>
+                        <input type="password" id="google-api-key" placeholder="Enter your Google Cloud API key">
+                        <button type="button" id="validate-api-key" class="btn-small">Validate</button>
+                    </div>
+                </div>
+                
+                <!-- Whisper Configuration -->
+                <div id="whisper-config" class="config-section" style="display: none;">
+                    <h4>🔒 Whisper.cpp Configuration</h4>
+                    <div id="whisper-setup-status">
+                        <div class="setup-item">
+                            <span class="setup-label">Model Status:</span>
+                            <span class="setup-status" id="model-check-status">Checking...</span>
+                        </div>
+                        <div class="setup-item">
+                            <span class="setup-label">WebAssembly:</span>
+                            <span class="setup-status" id="wasm-check-status">Checking...</span>
+                        </div>
+                    </div>
+                    
+                    <div id="whisper-model-selection">
+                        <div class="config-item">
+                            <label for="whisper-model-size">Model Size:</label>
+                            <select id="whisper-model-size">
+                                <option value="tiny">Tiny (~39MB) - Fastest</option>
+                                <option value="base" selected>Base (~74MB) - Recommended</option>
+                                <option value="small">Small (~244MB) - Better accuracy</option>
+                                <option value="medium">Medium (~769MB) - High accuracy</option>
+                                <option value="large">Large (~1550MB) - Best accuracy</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="whisper-setup-guide" class="setup-guide">
+                        <h5>🚀 Quick Setup</h5>
+                        <div class="setup-steps">
+                            <div class="setup-step">
+                                <span class="step-icon">📥</span>
+                                <div class="step-text">
+                                    <strong>Download Required Files</strong>
+                                    <p>We'll help you download the Whisper model automatically</p>
+                                </div>
+                                <button type="button" id="auto-setup-whisper" class="btn-primary">Auto Setup</button>
+                            </div>
+                        </div>
+                        <details class="manual-setup">
+                            <summary>Manual Setup Instructions</summary>
+                            <p>If auto-setup doesn't work, follow our <a href="#" id="download-whisper-guide">detailed setup guide</a>.</p>
+                        </details>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="stt-actions">
+                <button id="process-audio-stt" class="btn-process" disabled>
+                    <span class="btn-icon">🎙️</span>
+                    <span class="btn-text">Start Transcription</span>
+                </button>
             </div>
         </div>
 
@@ -157,23 +274,78 @@
         <!-- Transcript Section -->
         <div id="transcript-section" style="display: none;">
             <div class="section-header">
-                <h3>Transcript Results</h3>
+                <h3>📝 Transcript Results</h3>
                 <div class="transcript-controls">
-                    <button id="copy-transcript">📋 Copy Text</button>
-                    <button id="download-txt">💾 Download TXT</button>
-                    <button id="download-srt">🎬 Download SRT</button>
-                    <button id="download-vtt">📺 Download VTT</button>
+                    <button id="copy-transcript" class="transcript-btn">
+                        <span class="btn-icon">📋</span>
+                        Copy Text
+                    </button>
+                    <button id="download-txt" class="transcript-btn">
+                        <span class="btn-icon">💾</span>
+                        Download TXT
+                    </button>
+                    <button id="download-srt" class="transcript-btn">
+                        <span class="btn-icon">🎬</span>
+                        Download SRT
+                    </button>
+                    <button id="download-vtt" class="transcript-btn">
+                        <span class="btn-icon">📺</span>
+                        Download VTT
+                    </button>
                 </div>
             </div>
             
-            <div id="transcript-stats">
-                <span class="stat">Segments: <strong id="segment-count">0</strong></span>
-                <span class="stat">Words: <strong id="word-count">0</strong></span>
-                <span class="stat">Average Confidence: <strong id="avg-confidence">0%</strong></span>
+            <div class="transcript-info-bar">
+                <div id="transcript-stats">
+                    <div class="stat">
+                        <span class="stat-icon">📊</span>
+                        <span class="stat-label">Segments:</span>
+                        <strong id="segment-count">0</strong>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-icon">📝</span>
+                        <span class="stat-label">Words:</span>
+                        <strong id="word-count">0</strong>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-icon">🎯</span>
+                        <span class="stat-label">Avg Confidence:</span>
+                        <strong id="avg-confidence">0%</strong>
+                    </div>
+                    <div class="stat">
+                        <span class="stat-icon">⏱️</span>
+                        <span class="stat-label">Duration:</span>
+                        <strong id="transcript-duration">0:00</strong>
+                    </div>
+                </div>
+                
+                <div class="transcript-options">
+                    <label class="option-toggle">
+                        <input type="checkbox" id="show-timestamps" checked>
+                        <span class="toggle-text">Show Timestamps</span>
+                    </label>
+                    <label class="option-toggle">
+                        <input type="checkbox" id="show-confidence" checked>
+                        <span class="toggle-text">Show Confidence</span>
+                    </label>
+                    <label class="option-toggle">
+                        <input type="checkbox" id="enable-click-seek" checked>
+                        <span class="toggle-text">Click to Seek</span>
+                    </label>
+                </div>
             </div>
 
             <div id="transcript-container">
-                <div id="transcript-content"></div>
+                <div id="transcript-content" class="transcript-display">
+                    <!-- Transcript segments will be rendered here -->
+                </div>
+            </div>
+            
+            <div class="transcript-footer">
+                <p class="help-text">
+                    💡 <strong>Tip:</strong> Click on any text segment to jump to that position in the audio. 
+                    Confidence scores help identify sections that may need manual review.
+                </p>
             </div>
         </div>
 

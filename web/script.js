@@ -727,33 +727,37 @@ const spectralCentroid = document.getElementById('spectral-centroid');
 sttProcessor = new AudioSTTProcessor();
 
 // Initialize when DOM is loaded
-document.addEventListener('DOMContentLoaded', async () => {
-    console.log('Initializing Audio Waveform Analyzer...');
+document.addEventListener('DOMContentLoaded', () => {
+    sttProcessor = new AudioSTTProcessor();
+    initializeWaveSurfer();
+    setupEventListeners();
     
-    try {
-        // Load WaveSurfer from CDN
-        console.log('Loading WaveSurfer...');
-        
-        // Try to load WaveSurfer from CDN
-        const script = document.createElement('script');
-        script.src = 'https://unpkg.com/wavesurfer.js@7/dist/wavesurfer.min.js';
-        document.head.appendChild(script);
-        
-        script.onload = () => {
-            console.log('WaveSurfer loaded successfully');
-            initializeWaveSurfer();
-            setupEventListeners();
-        };
-        
-        script.onerror = () => {
-            console.error('Failed to load WaveSurfer from CDN');
-            alert('Failed to load WaveSurfer. Please check your internet connection and refresh the page.');
-        };
-        
-    } catch (error) {
-        console.error('Error during initialization:', error);
-        alert('Error initializing the application: ' + error.message);
+    // Set initial UI state
+    updateUIState('initial');
+    
+    // Add event listeners for the new UI elements
+    const apiKeyInput = document.getElementById('google-api-key');
+    if (apiKeyInput) {
+        apiKeyInput.addEventListener('input', updateSTTMethodStatus);
     }
+    
+    const methodRadios = document.querySelectorAll('input[name="stt-method"]');
+    methodRadios.forEach(radio => {
+        radio.addEventListener('change', handleSTTMethodChange);
+    });
+    
+    const validateApiBtn = document.getElementById('validate-api-key');
+    if (validateApiBtn) {
+        validateApiBtn.addEventListener('click', validateGoogleApiKey);
+    }
+    
+    const autoSetupBtn = document.getElementById('auto-setup-whisper');
+    if (autoSetupBtn) {
+        autoSetupBtn.addEventListener('click', autoSetupWhisper);
+    }
+
+    // Check Whisper.cpp availability and update UI accordingly
+    sttProcessor.checkWhisperAvailability();
 });
 
 function initializeWaveSurfer() {
@@ -832,6 +836,10 @@ function initializeWaveSurfer() {
         wavesurfer.on('error', (error) => {
             console.error('WaveSurfer error:', error);
             alert('Error loading audio file: ' + error.message);
+        });
+
+        wavesurfer.on('interaction', () => {
+            updateTimeDisplay();
         });
         
     } catch (error) {
@@ -928,85 +936,156 @@ function setupEventListeners() {
             downloadFile(blob, 'transcript.vtt');
         });
     }
+}
 
-    // Initialize Whisper check
-    setTimeout(() => {
-        if (sttProcessor) {
-            sttProcessor.checkWhisperAvailability();
+function updateUIState(state) {
+    const onboardingSection = document.getElementById('onboarding-section');
+    const sttControls = document.getElementById('stt-controls');
+    const processingStatus = document.getElementById('processing-status');
+    const transcriptSection = document.getElementById('transcript-section');
+    const analysisSection = document.getElementById('analysis-section');
+
+    // Hide all conditional sections by default
+    if (onboardingSection) onboardingSection.style.display = 'none';
+    if (sttControls) sttControls.style.display = 'none';
+    if (processingStatus) processingStatus.style.display = 'none';
+    if (transcriptSection) transcriptSection.style.display = 'none';
+    if (analysisSection) analysisSection.style.display = 'none';
+
+    switch (state) {
+        case 'initial':
+            if (onboardingSection) onboardingSection.style.display = 'block';
+            break;
+        case 'file-loaded':
+            if (sttControls) sttControls.style.display = 'block';
+            if (analysisSection) analysisSection.style.display = 'block';
+            handleSTTMethodChange();
+            break;
+        case 'processing':
+            if (sttControls) sttControls.style.display = 'block';
+            if (analysisSection) analysisSection.style.display = 'block';
+            if (processingStatus) processingStatus.style.display = 'block';
+            break;
+        case 'results':
+            if (sttControls) sttControls.style.display = 'block';
+            if (analysisSection) analysisSection.style.display = 'block';
+            if (transcriptSection) transcriptSection.style.display = 'block';
+            break;
+    }
+}
+
+function updateSTTMethodStatus() {
+    const googleStatus = document.getElementById('google-status');
+    const whisperStatus = document.getElementById('whisper-status');
+    const apiKey = document.getElementById('google-api-key')?.value;
+    
+    // Update Google Cloud status
+    if (googleStatus) {
+        const statusSpan = googleStatus.querySelector('.status-indicator');
+        if (apiKey && apiKey.trim().length > 0) {
+            statusSpan.textContent = '✅ API Key Configured';
+            statusSpan.className = 'status-indicator ready';
+        } else {
+            statusSpan.textContent = '⚠️ API Key Required';
+            statusSpan.className = 'status-indicator pending';
         }
-    }, 1000);
+    }
+    
+    // Update process button state
+    updateProcessButtonState();
+}
+
+function updateProcessButtonState() {
+    const processBtn = document.getElementById('process-audio-stt');
+    const selectedMethod = document.querySelector('input[name="stt-method"]:checked')?.value;
+    const apiKey = document.getElementById('google-api-key')?.value;
+    
+    if (!processBtn || !audioBuffer) {
+        if (processBtn) processBtn.disabled = true;
+        return;
+    }
+    
+    let canProcess = false;
+    let buttonText = 'Start Transcription';
+    
+    if (selectedMethod === 'cloud-google') {
+        canProcess = apiKey && apiKey.trim().length > 0;
+        if (!canProcess) {
+            buttonText = 'Enter API Key First';
+        }
+    } else if (selectedMethod === 'whisper-wasm') {
+        // Check if Whisper is available (this would be updated by checkWhisperAvailability)
+        canProcess = sttProcessor?.isWhisperLoaded || false;
+        if (!canProcess) {
+            buttonText = 'Setup Whisper First';
+        }
+    }
+    
+    processBtn.disabled = !canProcess;
+    const btnText = processBtn.querySelector('.btn-text');
+    if (btnText) btnText.textContent = buttonText;
+}
+
+function handleSTTMethodChange() {
+    const selectedMethod = document.querySelector('input[name="stt-method"]:checked');
+    if (!selectedMethod) return;
+
+    const method = selectedMethod.value;
+    const cloudConfig = document.getElementById('cloud-config');
+    const whisperConfig = document.getElementById('whisper-config');
+
+    // Hide all config sections first
+    if (cloudConfig) cloudConfig.style.display = 'none';
+    if (whisperConfig) whisperConfig.style.display = 'none';
+
+    // Show relevant config section
+    if (method === 'cloud-google' && cloudConfig) {
+        cloudConfig.style.display = 'block';
+    } else if (method === 'whisper-wasm' && whisperConfig) {
+        whisperConfig.style.display = 'block';
+    }
+
+    // Update method option styling
+    document.querySelectorAll('.method-option').forEach(option => {
+        const radio = option.querySelector('input[type="radio"]');
+        if (radio && radio.checked) {
+            option.style.borderColor = '#667eea';
+            option.style.background = '#f0f4ff';
+        } else {
+            option.style.borderColor = '#e2e8f0';
+            option.style.background = 'white';
+        }
+    });
+
+    updateSTTMethodStatus();
 }
 
 async function handleFileSelect(event) {
-    console.log('File selected:', event.target.files[0]);
     const file = event.target.files[0];
     if (!file) return;
 
     originalFileInfo = {
         name: file.name,
         size: file.size,
-        type: file.type,
-        lastModified: file.lastModified
+        type: file.type
     };
 
-    console.log('File details:', originalFileInfo);
+    const fileInfoPreview = document.getElementById('file-info-preview');
+    const fileSizeWarning = document.getElementById('file-size-warning');
+
+    if (fileInfoPreview) fileInfoPreview.style.display = 'block';
+    if (fileSizeWarning) fileSizeWarning.textContent = `File: ${file.name} (${formatFileSize(file.size)})`;
 
     try {
-        if (!wavesurfer) {
-            throw new Error('WaveSurfer not initialized');
-        }
-
-        console.log('Loading file into WaveSurfer...');
-        
-        // Check if it's a video file
-        const isVideoFile = isVideoFormat(file);
-        
-        if (isVideoFile) {
-            console.log('Processing video file:', file.name);
-            try {
-                await handleVideoFile(file);
-            } catch (error) {
-                console.error('Video processing error:', error);
-                
-                // Show error with specific guidance
-                const transcriptionStatus = document.getElementById('transcription-status');
-                if (transcriptionStatus) {
-                    let errorMessage = 'Video processing failed: ';
-                    
-                    if (error.message.includes('createMediaElementAudioSource')) {
-                        errorMessage += 'Audio extraction not supported for this video format. ';
-                    } else if (error.message.includes('decode')) {
-                        errorMessage += 'Unable to decode video audio. ';
-                    } else {
-                        errorMessage += error.message;
-                    }
-                    
-                    // Add format-specific guidance
-                    const extension = file.name.split('.').pop().toLowerCase();
-                    if (['mxf', 'braw', 'r3d'].includes(extension)) {
-                        errorMessage += '\n\nProfessional formats like MXF and BRAW require conversion to MP4/MOV first.';
-                    } else {
-                        errorMessage += '\n\nTry converting to MP4 format or extract audio as WAV/MP3 first.';
-                    }
-                    
-                    transcriptionStatus.textContent = errorMessage;
-                    transcriptionStatus.className = 'error';
-                }
-                
-                // Create modal with detailed error info
-                showErrorModal('Video Processing Error', 
-                    error.message, 
-                    getVideoFormatHelp(file.name)
-                );
-            }
+        if (isVideoFormat(file)) {
+            await handleVideoFile(file);
         } else {
             await handleAudioFile(file);
         }
-        
+        updateUIState('file-loaded');
     } catch (error) {
-        console.error('Error loading file:', error);
-        const errorMsg = getFileErrorMessage(file, error);
-        alert(errorMsg);
+        showErrorModal('File Processing Error', `Failed to process file: ${error.message}`);
+        updateUIState('initial');
     }
 }
 
@@ -1424,102 +1503,71 @@ function estimateSpectralCentroid(data, sampleRate) {
 
 // STT Functions
 async function handleSTTProcessing() {
-    if (!audioBuffer || isProcessing) return;
-    
-    const selectedMethod = document.querySelector('input[name="stt-method"]:checked').value;
-    
-    isProcessing = true;
-    const processAudioBtn = document.getElementById('process-audio-stt');
-    const transcriptionStatus = document.getElementById('transcription-status');
-    
-    if (processAudioBtn) processAudioBtn.disabled = true;
-    if (transcriptionStatus) {
-        transcriptionStatus.textContent = 'Processing audio for speech recognition...';
-        transcriptionStatus.className = 'processing';
+    if (isProcessing || !audioBuffer) {
+        return;
     }
-    
+
+    isProcessing = true;
+    updateUIState('processing');
+
+    const sttMethod = document.querySelector('input[name="stt-method"]:checked').value;
+    const language = document.getElementById('language-select').value;
+    const enableTimestamps = document.getElementById('enable-timestamps').checked;
+    const confidenceTracking = document.getElementById('confidence-tracking').checked;
+    const googleApiKey = document.getElementById('google-api-key').value;
+
     try {
-        const options = {
-            method: selectedMethod,
-            language: document.getElementById('language-select')?.value || 'en-US',
-            enableTimestamps: document.getElementById('enable-timestamps')?.checked || true,
-            confidenceTracking: document.getElementById('confidence-tracking')?.checked || true
-        };
-        
-        // Add method-specific options
-        if (selectedMethod === 'cloud-google') {
-            const apiKey = document.getElementById('google-api-key')?.value;
-            if (!apiKey) {
-                throw new Error('Google Cloud API key is required');
-            }
-            options.googleApiKey = apiKey;
-        } else if (selectedMethod === 'whisper-wasm') {
-            options.modelSize = document.getElementById('whisper-model-size')?.value || 'base';
-        }
-        
-        const results = await sttProcessor.processAudioFile(audioBuffer, options);
-        
-        if (results && results.length > 0) {
-            transcriptData = results;
-            renderTranscript();
-            updateTranscriptStats();
-            
-            showElement('transcript-section');
-            if (transcriptionStatus) {
-                transcriptionStatus.textContent = `Processing complete! Generated ${results.length} transcript segments.`;
-                transcriptionStatus.className = 'completed';
-            }
-        } else {
-            if (transcriptionStatus) {
-                transcriptionStatus.textContent = 'No speech detected in the audio file.';
-                transcriptionStatus.className = 'error';
-            }
-        }
-        
+        transcriptData = await sttProcessor.processAudioFile(audioBuffer, {
+            method: sttMethod,
+            language: language,
+            enableTimestamps: enableTimestamps,
+            confidenceTracking: confidenceTracking,
+            googleApiKey: googleApiKey
+        });
+
+        renderTranscript();
+        updateTranscriptStats();
+        updateUIState('results');
     } catch (error) {
-        console.error('STT processing error:', error);
-        if (transcriptionStatus) {
-            transcriptionStatus.textContent = `Error: ${error.message}`;
-            transcriptionStatus.className = 'error';
-        }
+        showErrorModal('STT Processing Error', `An error occurred during transcription: ${error.message}`);
+        updateUIState('file-loaded');
     } finally {
         isProcessing = false;
-        if (processAudioBtn) processAudioBtn.disabled = false;
     }
 }
 
 function handleSTTMethodChange() {
-    const selectedMethod = document.querySelector('input[name="stt-method"]:checked').value;
+    const selectedMethod = document.querySelector('input[name="stt-method"]:checked');
+    if (!selectedMethod) return;
+
+    const method = selectedMethod.value;
     const cloudConfig = document.getElementById('cloud-config');
     const whisperConfig = document.getElementById('whisper-config');
-    const transcriptionStatus = document.getElementById('transcription-status');
-    
-    // Hide all configs first
+
+    // Hide all config sections first
     if (cloudConfig) cloudConfig.style.display = 'none';
     if (whisperConfig) whisperConfig.style.display = 'none';
-    
-    if (selectedMethod === 'cloud-google') {
-        if (cloudConfig) cloudConfig.style.display = 'block';
-        if (transcriptionStatus) {
-            transcriptionStatus.textContent = audioBuffer ? 
-                'Configure Google Cloud API key to process audio.' : 
-                'Load an audio file first.';
-            transcriptionStatus.className = '';
-        }
-    } else if (selectedMethod === 'whisper-wasm') {
-        if (whisperConfig) whisperConfig.style.display = 'block';
-        if (transcriptionStatus) {
-            transcriptionStatus.textContent = audioBuffer ? 
-                'Whisper.cpp provides offline processing with high accuracy.' : 
-                'Load an audio file first.';
-            transcriptionStatus.className = '';
-        }
-        
-        // Check Whisper availability when selected
-        if (sttProcessor) {
-            sttProcessor.checkWhisperAvailability();
-        }
+
+    // Show relevant config section
+    if (method === 'cloud-google' && cloudConfig) {
+        cloudConfig.style.display = 'block';
+    } else if (method === 'whisper-wasm' && whisperConfig) {
+        whisperConfig.style.display = 'block';
     }
+
+    // Update method option styling
+    document.querySelectorAll('.method-option').forEach(option => {
+        const radio = option.querySelector('input[type="radio"]');
+        if (radio && radio.checked) {
+            option.style.borderColor = '#667eea';
+            option.style.background = '#f0f4ff';
+        } else {
+            option.style.borderColor = '#e2e8f0';
+            option.style.background = 'white';
+        }
+    });
+
+    updateSTTMethodStatus();
 }
 
 function downloadWhisperGuide() {
@@ -1584,86 +1632,157 @@ function downloadWhisperGuide() {
 // Transcript rendering and interaction
 function renderTranscript() {
     const transcriptContent = document.getElementById('transcript-content');
-    if (!transcriptContent) return;
-    
-    transcriptContent.innerHTML = '';
+    if (!transcriptContent || !transcriptData || transcriptData.length === 0) {
+        if (transcriptContent) {
+            transcriptContent.innerHTML = `
+                <div class="transcript-empty">
+                    <div class="empty-icon">📝</div>
+                    <h4>No transcript available</h4>
+                    <p>Process an audio file to generate transcript results.</p>
+                </div>
+            `;
+        }
+        return;
+    }
+
+    const showTimestamps = document.getElementById('show-timestamps')?.checked ?? true;
+    const showConfidence = document.getElementById('show-confidence')?.checked ?? true;
+    const enableClickSeek = document.getElementById('enable-click-seek')?.checked ?? true;
+
+    let html = '';
     
     transcriptData.forEach((segment, index) => {
-        const segmentDiv = document.createElement('div');
-        segmentDiv.className = 'transcript-segment';
-        segmentDiv.dataset.index = index;
-        segmentDiv.dataset.startTime = segment.startTime;
-        segmentDiv.dataset.endTime = segment.endTime;
-        segmentDiv.style.cursor = 'pointer';
-        segmentDiv.style.padding = '8px';
-        segmentDiv.style.margin = '4px 0';
-        segmentDiv.style.borderRadius = '4px';
-        segmentDiv.style.transition = 'background 0.2s ease';
+        const confidence = segment.confidence || 0;
+        const confidenceClass = confidence >= 0.8 ? 'confidence-high' : 
+                               confidence >= 0.6 ? 'confidence-medium' : 'confidence-low';
+        const confidenceText = `${Math.round(confidence * 100)}%`;
         
-        // Add low confidence indicator
-        if (segment.confidence < 0.8) {
-            segmentDiv.style.borderLeft = '4px solid #dc3545';
-            segmentDiv.style.paddingLeft = '12px';
-        }
+        const startTime = segment.startTime || 0;
+        const endTime = segment.endTime || startTime;
+        const timestamp = `${formatTime(startTime)} - ${formatTime(endTime)}`;
         
-        // Create timestamp and text
-        const timeSpan = document.createElement('span');
-        timeSpan.style.color = '#6c757d';
-        timeSpan.style.fontSize = '12px';
-        timeSpan.style.fontFamily = 'monospace';
-        timeSpan.textContent = `[${formatTime(segment.startTime)}] `;
+        const clickHandler = enableClickSeek ? `onclick="seekToTime(${startTime})"` : '';
+        const cursorStyle = enableClickSeek ? 'cursor: pointer;' : '';
         
-        const textSpan = document.createElement('span');
-        textSpan.textContent = segment.text;
-        
-        segmentDiv.appendChild(timeSpan);
-        segmentDiv.appendChild(textSpan);
-        
-        // Hover effect
-        segmentDiv.addEventListener('mouseenter', () => {
-            segmentDiv.style.background = '#f8f9fa';
-        });
-        
-        segmentDiv.addEventListener('mouseleave', () => {
-            segmentDiv.style.background = 'transparent';
-        });
-        
-        // Click to seek
-        segmentDiv.addEventListener('click', () => {
-            if (wavesurfer && audioDuration > 0) {
-                const progress = segment.startTime / audioDuration;
-                wavesurfer.seekTo(progress);
-            }
-        });
-        
-        transcriptContent.appendChild(segmentDiv);
+        html += `
+            <div class="transcript-segment" 
+                 data-start-time="${startTime}" 
+                 data-end-time="${endTime}"
+                 data-segment-index="${index}"
+                 ${clickHandler}
+                 style="${cursorStyle}">
+                ${(showTimestamps || showConfidence) ? `
+                    <div class="segment-header">
+                        ${showTimestamps ? `<span class="segment-timestamp">${timestamp}</span>` : ''}
+                        ${showConfidence ? `<span class="segment-confidence ${confidenceClass}">${confidenceText}</span>` : ''}
+                    </div>
+                ` : ''}
+                <p class="segment-text">${escapeHtml(segment.text)}</p>
+            </div>
+        `;
     });
+
+    transcriptContent.innerHTML = html;
+    
+    // Add event listeners for transcript options
+    setupTranscriptOptionListeners();
+    
+    // Update stats
+    updateTranscriptStats();
 }
 
-function updateTranscriptStats() {
-    const totalWords = transcriptData.reduce((count, segment) => {
-        return count + segment.text.split(' ').length;
-    }, 0);
+function setupTranscriptOptionListeners() {
+    const showTimestamps = document.getElementById('show-timestamps');
+    const showConfidence = document.getElementById('show-confidence');
+    const enableClickSeek = document.getElementById('enable-click-seek');
     
-    const avgConf = transcriptData.reduce((sum, segment) => {
-        return sum + segment.confidence;
-    }, 0) / transcriptData.length;
+    if (showTimestamps) {
+        showTimestamps.addEventListener('change', renderTranscript);
+    }
     
-    const elements = {
-        'segment-count': transcriptData.length,
-        'word-count': totalWords,
-        'avg-confidence': Math.round(avgConf * 100) + '%'
-    };
+    if (showConfidence) {
+        showConfidence.addEventListener('change', renderTranscript);
+    }
     
-    for (const [id, value] of Object.entries(elements)) {
-        const element = document.getElementById(id);
-        if (element) {
-            element.textContent = value;
+    if (enableClickSeek) {
+        enableClickSeek.addEventListener('change', renderTranscript);
+    }
+}
+
+function seekToTime(timeInSeconds) {
+    if (wavesurfer && wavesurfer.isReady) {
+        const duration = wavesurfer.getDuration();
+        const position = Math.max(0, Math.min(timeInSeconds / duration, 1));
+        wavesurfer.seekTo(position);
+        
+        // Highlight the current segment
+        highlightCurrentSegment(timeInSeconds);
+        
+        // Auto-play if paused
+        if (!wavesurfer.isPlaying()) {
+            wavesurfer.play();
         }
     }
 }
 
-// Export functions
+function highlightCurrentSegment(currentTime) {
+    // Remove previous highlighting
+    document.querySelectorAll('.transcript-segment.playing').forEach(segment => {
+        segment.classList.remove('playing');
+    });
+    
+    // Find and highlight current segment
+    transcriptData.forEach((segment, index) => {
+        const startTime = segment.startTime || 0;
+        const endTime = segment.endTime || startTime + 1;
+        
+        if (currentTime >= startTime && currentTime <= endTime) {
+            const segmentElement = document.querySelector(`[data-segment-index="${index}"]`);
+            if (segmentElement) {
+                segmentElement.classList.add('playing');
+                
+                // Scroll into view if needed
+                segmentElement.scrollIntoView({
+                    behavior: 'smooth',
+                    block: 'nearest'
+                });
+            }
+        }
+    });
+}
+
+function updateTranscriptStats() {
+    if (!transcriptData || transcriptData.length === 0) return;
+
+    const segmentCount = transcriptData.length;
+    const wordCount = transcriptData.reduce((total, segment) => {
+        return total + (segment.text ? segment.text.split(/\s+/).length : 0);
+    }, 0);
+    
+    const avgConfidence = transcriptData.reduce((total, segment) => {
+        return total + (segment.confidence || 0);
+    }, 0) / segmentCount;
+    
+    const totalDuration = Math.max(...transcriptData.map(s => s.endTime || 0), 0);
+
+    // Update UI elements
+    const segmentCountEl = document.getElementById('segment-count');
+    const wordCountEl = document.getElementById('word-count');
+    const avgConfidenceEl = document.getElementById('avg-confidence');
+    const transcriptDurationEl = document.getElementById('transcript-duration');
+
+    if (segmentCountEl) segmentCountEl.textContent = segmentCount;
+    if (wordCountEl) wordCountEl.textContent = wordCount.toLocaleString();
+    if (avgConfidenceEl) avgConfidenceEl.textContent = `${Math.round(avgConfidence * 100)}%`;
+    if (transcriptDurationEl) transcriptDurationEl.textContent = formatTime(totalDuration);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
 function handleCopyTranscript() {
     const text = getFullTranscriptText();
     navigator.clipboard.writeText(text).then(() => {
@@ -1821,302 +1940,93 @@ function showErrorModal(title, message, help) {
     }, 10000);
 }
 
-async function processWithGoogleCloud(audioData, language = 'en-US', enableTimestamps = true, enableConfidence = true) {
-    const apiKey = document.getElementById('google-api-key').value;
-    if (!apiKey) {
-        throw new Error('Google Cloud API key is required');
+async function validateGoogleApiKey() {
+    const apiKey = document.getElementById('google-api-key')?.value;
+    const validateBtn = document.getElementById('validate-api-key');
+    
+    if (!apiKey || apiKey.trim().length === 0) {
+        return;
     }
     
-    // Convert audio data to base64
-    let base64Audio;
-    if (audioData instanceof ArrayBuffer) {
-        const uint8Array = new Uint8Array(audioData);
-        base64Audio = btoa(String.fromCharCode.apply(null, uint8Array));
-    } else {
-        base64Audio = audioData;
+    if (validateBtn) {
+        validateBtn.textContent = 'Validating...';
+        validateBtn.disabled = true;
     }
     
-    // Check file size - Google Cloud sync limit is 10MB
-    const fileSizeBytes = base64Audio.length * 0.75; // Base64 is ~33% larger than binary
-    const maxSyncSize = 10 * 1024 * 1024; // 10MB
-    
-    console.log(`Audio file size: ${Math.round(fileSizeBytes / 1024 / 1024 * 100) / 100}MB`);
-    
-    if (fileSizeBytes > maxSyncSize) {
-        console.log('File exceeds 10MB limit, using chunked processing...');
-        return await processLargeFileInChunks(audioBuffer, language, enableTimestamps, enableConfidence, apiKey);
-    }
-    
-    // Process small file normally
-    const requestBody = {
-        config: {
-            encoding: 'LINEAR16',
-            sampleRateHertz: audioBuffer.sampleRate,
-            languageCode: language,
-            enableWordTimeOffsets: enableTimestamps,
-            enableWordConfidence: enableConfidence,
-            model: 'latest_long',
-            useEnhanced: true
-        },
-        audio: {
-            content: base64Audio
-        }
-    };
-    
-    const response = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-    });
-    
-    if (!response.ok) {
-        const errorText = await response.text();
-        let errorMessage = `HTTP ${response.status}`;
+    try {
+        // Test API key with a minimal request
+        const response = await fetch(`https://speech.googleapis.com/v1/operations?key=${apiKey}`, {
+            method: 'GET'
+        });
         
-        try {
-            const errorData = JSON.parse(errorText);
-            if (errorData.error) {
-                errorMessage = errorData.error.message || errorText;
+        if (response.ok || response.status === 400) {
+            // 400 is expected for this endpoint, but it means the API key is valid
+            updateSTTMethodStatus();
+            if (validateBtn) {
+                validateBtn.textContent = '✅ Valid';
+                validateBtn.style.background = '#d4edda';
+                validateBtn.style.color = '#155724';
             }
-        } catch (e) {
-            errorMessage = errorText;
+        } else {
+            throw new Error('Invalid API key');
         }
-        
-        throw new Error(`Google Cloud API error: ${response.status} - ${errorMessage}`);
+    } catch (error) {
+        if (validateBtn) {
+            validateBtn.textContent = '❌ Invalid';
+            validateBtn.style.background = '#f8d7da';
+            validateBtn.style.color = '#721c24';
+        }
+    } finally {
+        if (validateBtn) {
+            validateBtn.disabled = false;
+            setTimeout(() => {
+                validateBtn.textContent = 'Validate';
+                validateBtn.style.background = '';
+                validateBtn.style.color = '';
+            }, 2000);
+        }
     }
-    
-    const result = await response.json();
-    
-    if (!result.results || result.results.length === 0) {
-        throw new Error('No transcription results received from Google Cloud');
-    }
-    
-    return formatGoogleCloudResults(result.results);
 }
 
-async function processLargeFileInChunks(audioBuffer, language, enableTimestamps, enableConfidence, apiKey) {
-    const chunkDuration = 30; // 30 seconds per chunk
-    const sampleRate = audioBuffer.sampleRate;
-    const samplesPerChunk = chunkDuration * sampleRate;
-    const totalSamples = audioBuffer.length;
-    const totalChunks = Math.ceil(totalSamples / samplesPerChunk);
+async function autoSetupWhisper() {
+    const autoSetupBtn = document.getElementById('auto-setup-whisper');
+    const modelSize = document.getElementById('whisper-model-size')?.value || 'base';
     
-    console.log(`Processing ${totalChunks} chunks of ${chunkDuration} seconds each...`);
-    
-    // Update status
-    const statusElement = document.getElementById('transcription-status');
-    if (statusElement) {
-        statusElement.textContent = `Processing large file in ${totalChunks} chunks...`;
-        statusElement.className = 'processing';
+    if (autoSetupBtn) {
+        autoSetupBtn.textContent = 'Setting up...';
+        autoSetupBtn.disabled = true;
     }
     
-    // Create progress container
-    let progressContainer = document.getElementById('chunk-progress-container');
-    if (!progressContainer) {
-        progressContainer = document.createElement('div');
-        progressContainer.id = 'chunk-progress-container';
-        progressContainer.className = 'chunk-progress';
-        progressContainer.innerHTML = `
-            <div class="chunk-progress-label">Processing chunks: <span id="chunk-current">0</span>/${totalChunks}</div>
-            <div class="chunk-progress-bar">
-                <div class="chunk-progress-fill" id="chunk-progress-fill" style="width: 0%"></div>
-            </div>
-        `;
+    try {
+        // This is a placeholder for actual auto-setup functionality
+        // In a real implementation, you'd download and set up the Whisper files
         
-        // Insert after status element
-        if (statusElement && statusElement.parentNode) {
-            statusElement.parentNode.insertBefore(progressContainer, statusElement.nextSibling);
-        }
-    }
-    
-    const allResults = [];
-    
-    for (let i = 0; i < totalChunks; i++) {
-        const startSample = i * samplesPerChunk;
-        const endSample = Math.min(startSample + samplesPerChunk, totalSamples);
-        const chunkSamples = endSample - startSample;
-        
-        console.log(`Processing chunk ${i + 1}/${totalChunks} (${chunkSamples} samples)`);
-        
-        // Update progress
-        const currentElement = document.getElementById('chunk-current');
-        const fillElement = document.getElementById('chunk-progress-fill');
-        if (currentElement) currentElement.textContent = i + 1;
-        if (fillElement) fillElement.style.width = `${((i + 1) / totalChunks) * 100}%`;
-        
-        try {
-            // Create chunk audio buffer
-            const chunkBuffer = createAudioChunk(audioBuffer, startSample, endSample);
+        // For now, just show the setup guide
+        const setupGuide = document.getElementById('whisper-setup-guide');
+        if (setupGuide) {
+            setupGuide.innerHTML = `
+                <h5>🚀 Auto Setup</h5>
+                <div class="setup-notice">
+                    <p><strong>Note:</strong> Auto-setup is not yet implemented. Please follow the manual setup instructions in the detailed guide.</p>
+                    <button type="button" id="show-manual-guide" class="btn-primary">Show Manual Setup Guide</button>
+                </div>
+            `;
             
-            // Convert chunk to base64
-            const chunkBase64 = await audioBufferToBase64(chunkBuffer);
-            
-            // Process chunk
-            const chunkResult = await processChunkWithGoogleCloud(
-                chunkBase64, 
-                chunkBuffer.sampleRate, 
-                language, 
-                enableTimestamps, 
-                enableConfidence, 
-                apiKey
-            );
-            
-            // Add timestamp offset to chunk results
-            const timeOffset = (startSample / sampleRate);
-            const adjustedResult = adjustChunkTimestamps(chunkResult, timeOffset);
-            
-            allResults.push(...adjustedResult);
-            
-            // Small delay between requests to avoid rate limiting
-            if (i < totalChunks - 1) {
-                await new Promise(resolve => setTimeout(resolve, 200));
+            const showGuideBtn = document.getElementById('show-manual-guide');
+            if (showGuideBtn) {
+                showGuideBtn.addEventListener('click', () => {
+                    downloadWhisperGuide();
+                });
             }
-            
-        } catch (error) {
-            console.error(`Chunk ${i + 1} failed:`, error);
-            // Continue with next chunk, but note the error
-            allResults.push({
-                text: `[Chunk ${i + 1} processing failed: ${error.message}]`,
-                startTime: startSample / sampleRate,
-                endTime: endSample / sampleRate,
-                confidence: 0
-            });
         }
-    }
-    
-    // Remove progress container
-    if (progressContainer && progressContainer.parentNode) {
-        progressContainer.parentNode.removeChild(progressContainer);
-    }
-    
-    // Update final status
-    if (statusElement) {
-        statusElement.textContent = `Chunked processing complete - ${allResults.length} segments processed`;
-        statusElement.className = 'completed';
-    }
-    
-    return allResults;
-}
-
-function createAudioChunk(audioBuffer, startSample, endSample) {
-    const chunkLength = endSample - startSample;
-    const numberOfChannels = audioBuffer.numberOfChannels;
-    const sampleRate = audioBuffer.sampleRate;
-    
-    // Create new audio context for chunk processing
-    const audioContext = new AudioContext();
-    const chunkBuffer = audioContext.createBuffer(numberOfChannels, chunkLength, sampleRate);
-    
-    // Copy audio data
-    for (let channel = 0; channel < numberOfChannels; channel++) {
-        const originalData = audioBuffer.getChannelData(channel);
-        const chunkData = chunkBuffer.getChannelData(channel);
         
-        for (let i = 0; i < chunkLength; i++) {
-            chunkData[i] = originalData[startSample + i];
+    } catch (error) {
+        console.error('Auto-setup failed:', error);
+    } finally {
+        if (autoSetupBtn) {
+            autoSetupBtn.textContent = 'Auto Setup';
+            autoSetupBtn.disabled = false;
         }
     }
-    
-    return chunkBuffer;
 }
 
-async function audioBufferToBase64(audioBuffer) {
-    // Convert AudioBuffer to WAV format, then to base64
-    const wavData = audioBufferToWav(audioBuffer);
-    const uint8Array = new Uint8Array(wavData);
-    return btoa(String.fromCharCode.apply(null, uint8Array));
-}
-
-function audioBufferToWav(audioBuffer) {
-    const numChannels = audioBuffer.numberOfChannels;
-    const sampleRate = audioBuffer.sampleRate;
-    const format = 1; // PCM
-    const bitDepth = 16;
-    
-    const bytesPerSample = bitDepth / 8;
-    const blockAlign = numChannels * bytesPerSample;
-    
-    const buffer = new ArrayBuffer(44 + audioBuffer.length * numChannels * bytesPerSample);
-    const view = new DataView(buffer);
-    
-    // WAV header
-    const writeString = (offset, string) => {
-        for (let i = 0; i < string.length; i++) {
-            view.setUint8(offset + i, string.charCodeAt(i));
-        }
-    };
-    
-    writeString(0, 'RIFF');
-    view.setUint32(4, 36 + audioBuffer.length * numChannels * bytesPerSample, true);
-    writeString(8, 'WAVE');
-    writeString(12, 'fmt ');
-    view.setUint32(16, 16, true);
-    view.setUint16(20, format, true);
-    view.setUint16(22, numChannels, true);
-    view.setUint32(24, sampleRate, true);
-    view.setUint32(28, sampleRate * blockAlign, true);
-    view.setUint16(32, blockAlign, true);
-    view.setUint16(34, bitDepth, true);
-    writeString(36, 'data');
-    view.setUint32(40, audioBuffer.length * numChannels * bytesPerSample, true);
-    
-    // Convert float samples to 16-bit PCM
-    let offset = 44;
-    for (let i = 0; i < audioBuffer.length; i++) {
-        for (let channel = 0; channel < numChannels; channel++) {
-            const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(channel)[i]));
-            view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7FFF, true);
-            offset += 2;
-        }
-    }
-    
-    return buffer;
-}
-
-async function processChunkWithGoogleCloud(base64Audio, sampleRate, language, enableTimestamps, enableConfidence, apiKey) {
-    const requestBody = {
-        config: {
-            encoding: 'LINEAR16',
-            sampleRateHertz: sampleRate,
-            languageCode: language,
-            enableWordTimeOffsets: enableTimestamps,
-            enableWordConfidence: enableConfidence,
-            model: 'latest_long',
-            useEnhanced: true
-        },
-        audio: {
-            content: base64Audio
-        }
-    };
-    
-    const response = await fetch(`https://speech.googleapis.com/v1/speech:recognize?key=${apiKey}`, {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestBody)
-    });
-    
-    if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(`Chunk processing failed: ${response.status} - ${errorText}`);
-    }
-    
-    const result = await response.json();
-    
-    if (!result.results || result.results.length === 0) {
-        return []; // Empty chunk
-    }
-    
-    return formatGoogleCloudResults(result.results);
-}
-
-function adjustChunkTimestamps(results, timeOffset) {
-    return results.map(result => ({
-        ...result,
-        startTime: (result.startTime || 0) + timeOffset,
-        endTime: (result.endTime || 0) + timeOffset
-    }));
-}
