@@ -728,9 +728,14 @@ sttProcessor = new AudioSTTProcessor();
 
 // Initialize when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
-    sttProcessor = new AudioSTTProcessor();
-    initializeWaveSurfer();
-    setupEventListeners();
+    try {
+        sttProcessor = new AudioSTTProcessor();
+        initializeWaveSurfer();
+        setupEventListeners();
+    } catch (error) {
+        console.error('Failed to initialize application:', error);
+        showErrorModal('Initialization Error', error.message, 'Please refresh the page and ensure you have a stable internet connection.');
+    }
     
     // Set initial UI state
     updateUIState('initial');
@@ -764,6 +769,17 @@ function initializeWaveSurfer() {
     console.log('Initializing WaveSurfer...');
     
     try {
+        // Check if WaveSurfer is available
+        if (typeof WaveSurfer === 'undefined') {
+            throw new Error('WaveSurfer library not loaded. Please check your internet connection and refresh the page.');
+        }
+        
+        // Check if the waveform container exists
+        const waveformContainer = document.getElementById('waveform');
+        if (!waveformContainer) {
+            throw new Error('Waveform container not found in DOM.');
+        }
+        
         // Initialize WaveSurfer
         wavesurfer = WaveSurfer.create({
             container: '#waveform',
@@ -778,6 +794,11 @@ function initializeWaveSurfer() {
         });
 
         console.log('WaveSurfer created successfully');
+        
+        // Verify WaveSurfer is properly initialized
+        if (!wavesurfer) {
+            throw new Error('WaveSurfer initialization failed - object is null');
+        }
 
         // WaveSurfer event listeners
         wavesurfer.on('ready', () => {
@@ -1120,6 +1141,9 @@ async function handleVideoFile(file) {
         const blob = new Blob([file], { type: file.type });
         const url = URL.createObjectURL(blob);
         
+        if (!wavesurfer) {
+            throw new Error('WaveSurfer not initialized. Please refresh the page and try again.');
+        }
         await wavesurfer.load(url);
         
         // Decode the video file directly to get audio
@@ -1317,6 +1341,9 @@ async function handleAudioFile(file) {
     console.log('Blob URL created:', url);
     
     // Load into WaveSurfer
+    if (!wavesurfer) {
+        throw new Error('WaveSurfer not initialized. Please refresh the page and try again.');
+    }
     await wavesurfer.load(url);
     
     console.log('File loaded successfully');
