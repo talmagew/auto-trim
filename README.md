@@ -71,3 +71,7 @@ No build step is required; all dependencies are loaded via CDN. Simply serve the
 - Modern web browser with ES6+ support
 - Chrome/Edge for full STT functionality
 - Microphone access for live transcription
+
+## UX Improvement Ideas
+
+See [UX_IMPROVEMENTS.md](./UX_IMPROVEMENTS.md) for a list of suggestions to modernize the interface and enhance usability.
